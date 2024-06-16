@@ -1,0 +1,73 @@
+# Comments are provided throughout this file to help you get started.
+# If you need more help, visit the Docker Compose reference guide at
+# https://docs.docker.com/go/compose-spec-reference/
+
+# Here the instructions define your application as a service called "server".
+# This service is built from the Dockerfile in the current directory.
+# You can add other services your application may depend on here, such as a
+# database or a cache. For examples, see the Awesome Compose repository:
+# https://github.com/docker/awesome-compose
+services:
+  client:
+    image: randomguy676/audio_streaming:client
+    environment:
+      NODE_ENV: production
+      NODE_TLS_REJECT_UNAUTHORIZED: 0
+      REACT_APP_SERVER_URL: http://localhost:6060
+    ports:
+      - 3000:3000
+    depends_on:
+      server:
+        condition: service_healthy
+  server:
+    image: randomguy676/audio_streaming:server
+    ports:
+      - 6060:6060
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - PORT=6060
+      - CONNECTION_STRING=Server=db;Database=audio_streaming;Port=5432;User Id=postgres;Password=1234
+      - REDIS_URL=redis
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:6060/healh || exit 1"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    volumes:
+      - server-data:/app/data
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  db:
+    image: randomguy676/audio_streaming:db
+    restart: always
+    user: postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=audio_streaming
+      - POSTGRES_PASSWORD=1234
+    expose:
+      - 5432
+    healthcheck:
+      test: [ "CMD", "pg_isready" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  redis:
+    image: randomguy676/audio_streaming:redis
+    ports:
+      - 6379:6379
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+    volumes:
+      - redis-data:/data
+volumes:
+  server-data:
+  db-data:
+  redis-data:
